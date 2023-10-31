@@ -1,11 +1,15 @@
 import modules.scripts as scripts
 import gradio as gr
 import os
+import numpy as np
 
 from modules import images, script_callbacks
+from modules.script_callbacks import CFGDenoiserParams, AfterCFGCallbackParams
 from modules.processing import process_images, Processed
 from modules.processing import Processed
 from modules.shared import opts, cmd_opts, state
+
+import torch
 
 class ExtensionTemplateScript(scripts.Script):
         # Extension title in menu UI
@@ -46,3 +50,65 @@ class ExtensionTemplateScript(scripts.Script):
                 proc = process_images(p)
                 # TODO: add image edit process via Processed object proc
                 return proc
+
+def cads_linear_schedule(t, tau1, tau2):
+        """ CADS annealing schedule function """
+        if t <= tau1:
+                return 1.0
+        if t>= tau2:
+                return 0.0
+        gamma = (tau2-t)/(tau2-tau1)
+        return gamma
+
+def add_noise(y, gamma, noise_scale, psi, rescale=False):
+        """ CADS adding noise to the condition 
+
+        Arguments:
+        y: Input condition
+        gamma: Noise level
+        noise_scale: Noise scale
+        psi: Rescaling factor
+        rescale (bool): Rescale the condition
+
+        
+        """
+        y_mean, y_std = torch.mean(y, dtype=y.dtype), torch.std(y, dtype=y.dtype)
+        y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y, dtype=y.dtype)
+        if rescale:
+                y_scaled = (y - torch.mean(y, dtype=y.dtype)) / torch.std(y, dtype = y.dtype) * y_std + y_mean
+                y = psi * y_scaled + (1 - psi) * y
+        return y
+        
+def on_cfg_denoiser_callback(params: CFGDenoiserParams):
+        print("cads")
+        x = params.x
+        image_cond = params.image_cond
+        sigma = params.sigma
+        sampling_step = params.sampling_step
+        total_sampling_step = params.total_sampling_steps
+        text_cond = params.text_cond
+        text_uncond = params.text_uncond
+
+        initial_noise_scale  = 0.1      # s
+        t1 = 0.6          # tau1
+        t2 = 0.8          # tau2 - cutoff
+        mixing_factor = 1.0             # ψ
+        rescale = True
+
+        t = max(min(sampling_step / total_sampling_step, 1.0), 0.0)
+        gamma = cads_linear_schedule(t, t1, t2)
+        params.text_cond['vector'] = add_noise(text_cond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
+        params.text_uncond['vector'] = add_noise(text_uncond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
+
+# def on_cfg_denoised_callback(params: CFGDenoisedParams):
+#         print("cads")
+#         print("on_cfg_denoised")
+
+# def on_cfg_after_cfg_callback(params: AfterCFGCallbackParams):
+#         print("cads")
+#         print("on_cfg_after_cfg")
+
+script_callbacks.on_cfg_denoiser(on_cfg_denoiser_callback)
+# script_callbacks.on_cfg_denoised(on_cfg_denoised_callback)
+# script_callbacks.on_cfg_after_cfg(on_cfg_after_cfg_callback)
+
