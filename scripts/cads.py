@@ -1,13 +1,10 @@
 import modules.scripts as scripts
 import gradio as gr
-import os
 import numpy as np
 
-from modules import images, script_callbacks
-from modules.script_callbacks import CFGDenoiserParams, AfterCFGCallbackParams
-from modules.processing import process_images, Processed
-from modules.processing import Processed
-from modules.shared import opts, cmd_opts, state
+from modules import script_callbacks
+from modules.script_callbacks import CFGDenoiserParams
+from modules.processing import process_images
 
 import torch
 
@@ -61,7 +58,7 @@ def cads_linear_schedule(t, tau1, tau2):
         return gamma
 
 def add_noise(y, gamma, noise_scale, psi, rescale=False):
-        """ CADS adding noise to the condition 
+        """ CADS adding noise to the condition
 
         Arguments:
         y: Input condition
@@ -70,7 +67,7 @@ def add_noise(y, gamma, noise_scale, psi, rescale=False):
         psi: Rescaling factor
         rescale (bool): Rescale the condition
 
-        
+
         """
         y_mean, y_std = torch.mean(y, dtype=y.dtype), torch.std(y, dtype=y.dtype)
         y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y, dtype=y.dtype)
@@ -78,12 +75,9 @@ def add_noise(y, gamma, noise_scale, psi, rescale=False):
                 y_scaled = (y - torch.mean(y, dtype=y.dtype)) / torch.std(y, dtype = y.dtype) * y_std + y_mean
                 y = psi * y_scaled + (1 - psi) * y
         return y
-        
+
 def on_cfg_denoiser_callback(params: CFGDenoiserParams):
         print("cads")
-        x = params.x
-        image_cond = params.image_cond
-        sigma = params.sigma
         sampling_step = params.sampling_step
         total_sampling_step = params.total_sampling_steps
         text_cond = params.text_cond
@@ -100,15 +94,4 @@ def on_cfg_denoiser_callback(params: CFGDenoiserParams):
         params.text_cond['vector'] = add_noise(text_cond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
         params.text_uncond['vector'] = add_noise(text_uncond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
 
-# def on_cfg_denoised_callback(params: CFGDenoisedParams):
-#         print("cads")
-#         print("on_cfg_denoised")
-
-# def on_cfg_after_cfg_callback(params: AfterCFGCallbackParams):
-#         print("cads")
-#         print("on_cfg_after_cfg")
-
 script_callbacks.on_cfg_denoiser(on_cfg_denoiser_callback)
-# script_callbacks.on_cfg_denoised(on_cfg_denoised_callback)
-# script_callbacks.on_cfg_after_cfg(on_cfg_after_cfg_callback)
-
