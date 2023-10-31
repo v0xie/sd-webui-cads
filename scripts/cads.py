@@ -69,11 +69,14 @@ def add_noise(y, gamma, noise_scale, psi, rescale=False):
 
 
         """
-        y_mean, y_std = torch.mean(y, dtype=y.dtype), torch.std(y, dtype=y.dtype)
-        y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y, dtype=y.dtype)
+        y_mean, y_std = torch.mean(y), torch.std(y)
+        y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y)
         if rescale:
-                y_scaled = (y - torch.mean(y, dtype=y.dtype)) / torch.std(y, dtype = y.dtype) * y_std + y_mean
-                y = psi * y_scaled + (1 - psi) * y
+                y_scaled = (y - torch.mean(y)) / torch.std(y) * y_std + y_mean
+                if not torch.isnan(y_scaled).any():
+                        y = psi * y_scaled + (1 - psi) * y
+                else:
+                        print("Warning: NaN encountered in rescaling")
         return y
 
 def on_cfg_denoiser_callback(params: CFGDenoiserParams):
@@ -84,13 +87,15 @@ def on_cfg_denoiser_callback(params: CFGDenoiserParams):
         text_uncond = params.text_uncond
 
         initial_noise_scale  = 0.1      # s
-        t1 = 0.6          # tau1
-        t2 = 0.8          # tau2 - cutoff
+        t1 = 0.2          # tau1
+        t2 = 0.9          # tau2 - cutoff
         mixing_factor = 1.0             # ψ
-        rescale = True
+        rescale = False
 
         t = max(min(sampling_step / total_sampling_step, 1.0), 0.0)
         gamma = cads_linear_schedule(t, t1, t2)
+        params.text_cond['crossattn'] = add_noise(text_cond['crossattn'], gamma, initial_noise_scale, mixing_factor, rescale)
+        params.text_uncond['crossattn'] = add_noise(text_uncond['crossattn'], gamma, initial_noise_scale, mixing_factor, rescale)
         params.text_cond['vector'] = add_noise(text_cond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
         params.text_uncond['vector'] = add_noise(text_uncond['vector'], gamma, initial_noise_scale, mixing_factor, rescale)
 
