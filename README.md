@@ -1,9 +1,9 @@
 # sd-webui-cads
 ### An implementation of the method in *CADS: Unleashing the Diversity of Diffusion Models through Condition-Annealed Sampling* in Automatic1111 WebUI.
+CADS greatly increases diversity of generated images by adding scheduled noise to the conditioning at inference time.
 
 ![image](samples/comparison.png)
 
-CADS greatly increases diversity of generated images by adding scheduled noise to the conditioning at inference time.
 
 ### PR's are welcome!
 
