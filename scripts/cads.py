@@ -1,11 +1,18 @@
+import logging
+from os import environ
 import modules.scripts as scripts
 import gradio as gr
 import numpy as np
+from collections import OrderedDict
+from typing import Union
 
-from modules import script_callbacks
+from modules import script_callbacks, scripts
 from modules.script_callbacks import CFGDenoiserParams
 
 import torch
+
+logger = logging.getLogger(__name__)
+logger.setLevel(environ.get("SD_WEBUI_LOG_LEVEL", logging.INFO))
 
 """
 
@@ -74,17 +81,15 @@ class CADSExtensionScript(scripts.Script):
                 # Use lambda to call the callback function with the parameters to avoid global variables
                 y = lambda params: self.on_cfg_denoiser_callback(params, t1=t1, t2=t2, noise_scale=noise_scale, mixing_factor=mixing_factor, rescale=rescale)
 
-                # print('Hooked into callbacks')
+                logger.debug('Hooked callbacks')
                 script_callbacks.on_cfg_denoiser(y)
                 script_callbacks.on_script_unloaded(self.unhook_callbacks)
 
         def postprocess_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, *args, **kwargs):
                 self.unhook_callbacks()
-                # if kwargs.get('active', False) is False or not hasattr(p.extra_generation_params, 'CADS Active'):
-                #         return
 
         def unhook_callbacks(self):
-                #print('Unhooked callbacks')
+                logger.debug('Unhooked callbacks')
                 script_callbacks.remove_current_script_callbacks()
 
         def cads_linear_schedule(self, t, tau1, tau2):
@@ -113,7 +118,7 @@ class CADSExtensionScript(scripts.Script):
                         if not torch.isnan(y_scaled).any():
                                 y = psi * y_scaled + (1 - psi) * y
                         else:
-                                print("Warning: NaN encountered in rescaling")
+                                logger.debug("Warning: NaN encountered in rescaling")
                 return y
 
         def on_cfg_denoiser_callback(self, params: CFGDenoiserParams, t1, t2, noise_scale, mixing_factor, rescale):
@@ -124,9 +129,17 @@ class CADSExtensionScript(scripts.Script):
 
                 t = 1.0 - max(min(sampling_step / total_sampling_step, 1.0), 0.0) # Algorithms assumes we start at 1.0 and go to 0.0
                 gamma = self.cads_linear_schedule(t, t1, t2)
-
-                params.text_cond['crossattn'] = self.add_noise(text_cond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
-                params.text_uncond['crossattn'] = self.add_noise(text_uncond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
-                params.text_cond['vector'] = self.add_noise(text_cond['vector'], gamma, noise_scale, mixing_factor, rescale)
-                params.text_uncond['vector'] = self.add_noise(text_uncond['vector'], gamma, noise_scale, mixing_factor, rescale)
+                # SD 1.5
+                if isinstance(text_cond, torch.Tensor) and isinstance(text_uncond, torch.Tensor):
+                        params.text_cond = self.add_noise(text_cond, gamma, noise_scale, mixing_factor, rescale)
+                        params.text_uncond = self.add_noise(text_uncond, gamma, noise_scale, mixing_factor, rescale)
+                # SDXL
+                elif isinstance(text_cond, Union[dict, OrderedDict]) and isinstance(text_uncond, Union[dict, OrderedDict]):
+                        params.text_cond['crossattn'] = self.add_noise(text_cond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
+                        params.text_uncond['crossattn'] = self.add_noise(text_uncond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
+                        params.text_cond['vector'] = self.add_noise(text_cond['vector'], gamma, noise_scale, mixing_factor, rescale)
+                        params.text_uncond['vector'] = self.add_noise(text_uncond['vector'], gamma, noise_scale, mixing_factor, rescale)
+                else:
+                        logger.error('Unknown text_cond type')
+                        pass
 
