@@ -52,7 +52,7 @@ class CADSExtensionScript(scripts.Script):
                                 noise_scale = gr.Slider(value = 0.25, minimum = 0.0, maximum = 1.0, step = 0.01, label="Noise Scale", elem_id = 'cads_noise_scale', info='Scale of noise injected at every time step, default 0.25, recommended <= 0.3')
                                 mixing_factor= gr.Slider(value = 1.0, minimum = 0.0, maximum = 1.0, step = 0.01, label="Mixing Factor", elem_id = 'cads_mixing_factor', info='Regularization factor, lowering this will increase the diversity of the images with more chance of divergence, default 1.0')
                         with gr.Accordion('Experimental', open=False):
-                                apply_to_hr_pass = gr.Checkbox(value=False, default=False, label="Apply to Hires. Fix", elem_id='cads_hr_fix_active')
+                                apply_to_hr_pass = gr.Checkbox(value=False, default=False, label="Apply to Hires. Fix", elem_id='cads_hr_fix_active', info='Requires a very high denoising value to work. Default False')
                 active.do_not_save_to_config = True
                 rescale.do_not_save_to_config = True
                 t1.do_not_save_to_config = True
@@ -156,9 +156,11 @@ class CADSExtensionScript(scripts.Script):
                         pass
         
         def before_hr(self, p, *args):
+                self.unhook_callbacks()
+
                 params = getattr(p, "extra_generation_params", None)
                 if not params:
-                        logger.error("Missing extra_generation_params")
+                        logger.error("Missing attribute extra_generation_params")
                         return
 
                 active = params.get("CADS Active", False)
@@ -167,8 +169,7 @@ class CADSExtensionScript(scripts.Script):
 
                 apply_to_hr_pass = params.get("CADS Apply To Hires. Fix", False)
                 if apply_to_hr_pass is False:
-                        logger.debug("Disabled for hires. fix, unhooking CADS")
-                        self.unhook_callbacks()
+                        logger.debug("Disabled for hires. fix")
                         return
 
                 t1 = params.get("CADS Tau 1", None)
@@ -178,16 +179,16 @@ class CADSExtensionScript(scripts.Script):
                 rescale = params.get("CADS Rescale", None)
 
                 if t1 is None or t2 is None or noise_scale is None or mixing_factor is None or rescale is None:
-                        logger.error("Missing parameters for hi-res pass, unhooking CADS")
-                        self.unhook_callbacks()
+                        logger.error("Missing needed parameters for Hires. fix")
                         return
 
                 hr_pass_steps = getattr(p, "hr_second_pass_steps", -1)
-                if hr_pass_steps <= 0:
-                        logger.warning("Steps not set for hi-res pass, unhooking CADS")
-                        self.unhook_callbacks()
+                if hr_pass_steps < 0:
+                        logger.error("Attribute hr_second_pass_steps not found")
                         return
+                if hr_pass_steps == 0:
+                        logger.debug("Using first pass step count for hires. fix")
+                        hr_pass_steps = getattr(p, "steps", -1)
 
                 logger.debug("Enabled for hi-res fix with %i steps, re-hooking CADS", hr_pass_steps)
-                self.unhook_callbacks()
                 self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, hr_pass_steps)
