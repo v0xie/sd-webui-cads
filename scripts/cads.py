@@ -51,15 +51,18 @@ class CADSExtensionScript(scripts.Script):
                         with gr.Row():
                                 noise_scale = gr.Slider(value = 0.25, minimum = 0.0, maximum = 1.0, step = 0.01, label="Noise Scale", elem_id = 'cads_noise_scale', info='Scale of noise injected at every time step, default 0.25, recommended <= 0.3')
                                 mixing_factor= gr.Slider(value = 1.0, minimum = 0.0, maximum = 1.0, step = 0.01, label="Mixing Factor", elem_id = 'cads_mixing_factor', info='Regularization factor, lowering this will increase the diversity of the images with more chance of divergence, default 1.0')
+                        with gr.Accordion('Experimental', open=False):
+                                apply_to_hr_pass = gr.Checkbox(value=False, default=False, label="Apply to Hires. Fix", elem_id='cads_hr_fix_active')
                 active.do_not_save_to_config = True
                 rescale.do_not_save_to_config = True
                 t1.do_not_save_to_config = True
                 t2.do_not_save_to_config = True
                 noise_scale.do_not_save_to_config = True
                 mixing_factor.do_not_save_to_config = True
-                return [active, t1, t2, noise_scale, mixing_factor, rescale]
+                apply_to_hr_pass.do_not_save_to_config = True
+                return [active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass]
 
-        def before_process(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, *args, **kwargs):
+        def before_process(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
                 active = getattr(p, "cads_active", active)
                 if active is False:
                         return
@@ -68,6 +71,12 @@ class CADSExtensionScript(scripts.Script):
                 noise_scale = getattr(p, "cads_noise_scale", noise_scale)
                 mixing_factor = getattr(p, "cads_mixing_factor", mixing_factor)
                 rescale = getattr(p, "cads_rescale", rescale)
+                apply_to_hr_pass = getattr(p, "cads_hr_fix_active", apply_to_hr_pass)
+
+                first_pass_steps = getattr(p, "steps", -1)
+                if first_pass_steps <= 0:
+                        logger.error("Steps not set, disabling CADS")
+                        return
 
                 p.extra_generation_params = {
                         "CADS Active": active,
@@ -76,16 +85,19 @@ class CADSExtensionScript(scripts.Script):
                         "CADS Noise Scale": noise_scale,
                         "CADS Mixing Factor": mixing_factor,
                         "CADS Rescale": rescale,
+                        "CADS Apply To Hires. Fix": apply_to_hr_pass,
                 }
-
+                self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, first_pass_steps)
+        
+        def create_hook(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps, *args, **kwargs):
                 # Use lambda to call the callback function with the parameters to avoid global variables
-                y = lambda params: self.on_cfg_denoiser_callback(params, t1=t1, t2=t2, noise_scale=noise_scale, mixing_factor=mixing_factor, rescale=rescale)
+                y = lambda params: self.on_cfg_denoiser_callback(params, t1=t1, t2=t2, noise_scale=noise_scale, mixing_factor=mixing_factor, rescale=rescale, total_sampling_steps=total_sampling_steps)
 
                 logger.debug('Hooked callbacks')
                 script_callbacks.on_cfg_denoiser(y)
                 script_callbacks.on_script_unloaded(self.unhook_callbacks)
 
-        def postprocess_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, *args, **kwargs):
+        def postprocess_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
                 self.unhook_callbacks()
 
         def unhook_callbacks(self):
@@ -121,9 +133,9 @@ class CADSExtensionScript(scripts.Script):
                                 logger.debug("Warning: NaN encountered in rescaling")
                 return y
 
-        def on_cfg_denoiser_callback(self, params: CFGDenoiserParams, t1, t2, noise_scale, mixing_factor, rescale):
+        def on_cfg_denoiser_callback(self, params: CFGDenoiserParams, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps):
                 sampling_step = params.sampling_step
-                total_sampling_step = params.total_sampling_steps
+                total_sampling_step = total_sampling_steps
                 text_cond = params.text_cond
                 text_uncond = params.text_uncond
 
@@ -144,5 +156,38 @@ class CADSExtensionScript(scripts.Script):
                         pass
         
         def before_hr(self, p, *args):
-                logger.debug("Disable for hi-res fix")
+                params = getattr(p, "extra_generation_params", None)
+                if not params:
+                        logger.error("Missing extra_generation_params")
+                        return
+
+                active = params.get("CADS Active", False)
+                if active is False:
+                        return
+
+                apply_to_hr_pass = params.get("CADS Apply To Hires. Fix", False)
+                if apply_to_hr_pass is False:
+                        logger.debug("Disabled for hires. fix, unhooking CADS")
+                        self.unhook_callbacks()
+                        return
+
+                t1 = params.get("CADS Tau 1", None)
+                t2 = params.get("CADS Tau 2", None)
+                noise_scale = params.get("CADS Noise Scale", None)
+                mixing_factor = params.get("CADS Mixing Factor", None)
+                rescale = params.get("CADS Rescale", None)
+
+                if t1 is None or t2 is None or noise_scale is None or mixing_factor is None or rescale is None:
+                        logger.error("Missing parameters for hi-res pass, unhooking CADS")
+                        self.unhook_callbacks()
+                        return
+
+                hr_pass_steps = getattr(p, "hr_second_pass_steps", -1)
+                if hr_pass_steps <= 0:
+                        logger.warning("Steps not set for hi-res pass, unhooking CADS")
+                        self.unhook_callbacks()
+                        return
+
+                logger.debug("Enabled for hi-res fix with %i steps, re-hooking CADS", hr_pass_steps)
                 self.unhook_callbacks()
+                self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, hr_pass_steps)
