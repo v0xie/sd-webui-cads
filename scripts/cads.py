@@ -6,7 +6,7 @@ import numpy as np
 from collections import OrderedDict
 from typing import Union
 
-from modules import script_callbacks, scripts
+from modules import script_callbacks, rng
 from modules.script_callbacks import CFGDenoiserParams
 
 import torch
@@ -112,7 +112,7 @@ class CADSExtensionScript(scripts.Script):
                 rescale (bool): Rescale the condition
                 """
                 y_mean, y_std = torch.mean(y), torch.std(y)
-                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y)
+                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * rng.randn_like(y)
                 if rescale:
                         y_scaled = (y - torch.mean(y)) / torch.std(y) * y_std + y_mean
                         if not torch.isnan(y_scaled).any():
