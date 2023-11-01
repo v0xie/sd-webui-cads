@@ -142,4 +142,7 @@ class CADSExtensionScript(scripts.Script):
                 else:
                         logger.error('Unknown text_cond type')
                         pass
-
+        
+        def before_hr(self, p, *args):
+                logger.debug("Disable for hi-res fix")
+                self.unhook_callbacks()
