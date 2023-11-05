@@ -62,7 +62,7 @@ class CADSExtensionScript(scripts.Script):
                 apply_to_hr_pass.do_not_save_to_config = True
                 return [active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass]
 
-        def before_process(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
+        def before_process_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
                 active = getattr(p, "cads_active", active)
                 if active is False:
                         return
