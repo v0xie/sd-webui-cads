@@ -59,7 +59,7 @@ class CADSExtensionScript(scripts.Script):
                 mixing_factor.do_not_save_to_config = True
                 return [active, t1, t2, noise_scale, mixing_factor, rescale]
 
-        def before_process(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, *args, **kwargs):
+        def before_process_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, *args, **kwargs):
                 active = getattr(p, "cads_active", active)
                 if active is False:
                         return
