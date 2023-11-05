@@ -78,7 +78,7 @@ class CADSExtensionScript(scripts.Script):
                         logger.error("Steps not set, disabling CADS")
                         return
                 
-                seed = getattr(p, seed, 0)
+                seed = getattr(p, "seed", 0)
 
                 p.extra_generation_params = {
                         "CADS Active": active,
