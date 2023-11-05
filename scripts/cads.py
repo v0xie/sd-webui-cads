@@ -77,6 +77,8 @@ class CADSExtensionScript(scripts.Script):
                 if first_pass_steps <= 0:
                         logger.error("Steps not set, disabling CADS")
                         return
+                
+                seed = getattr(p, seed, 0)
 
                 p.extra_generation_params = {
                         "CADS Active": active,
@@ -87,11 +89,11 @@ class CADSExtensionScript(scripts.Script):
                         "CADS Rescale": rescale,
                         "CADS Apply To Hires. Fix": apply_to_hr_pass,
                 }
-                self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, first_pass_steps)
+                self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, first_pass_steps, seed)
         
-        def create_hook(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps, *args, **kwargs):
+        def create_hook(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps, seed, *args, **kwargs):
                 # Use lambda to call the callback function with the parameters to avoid global variables
-                y = lambda params: self.on_cfg_denoiser_callback(params, t1=t1, t2=t2, noise_scale=noise_scale, mixing_factor=mixing_factor, rescale=rescale, total_sampling_steps=total_sampling_steps)
+                y = lambda params: self.on_cfg_denoiser_callback(params, t1=t1, t2=t2, noise_scale=noise_scale, mixing_factor=mixing_factor, rescale=rescale, total_sampling_steps=total_sampling_steps, seed=seed)
 
                 logger.debug('Hooked callbacks')
                 script_callbacks.on_cfg_denoiser(y)
@@ -113,7 +115,7 @@ class CADSExtensionScript(scripts.Script):
                 gamma = (tau2-t)/(tau2-tau1)
                 return gamma
 
-        def add_noise(self, y, gamma, noise_scale, psi, rescale=False):
+        def add_noise(self, y, gamma, noise_scale, psi, rescale=False, noise_seed=0):
                 """ CADS adding noise to the condition
 
                 Arguments:
@@ -122,9 +124,11 @@ class CADSExtensionScript(scripts.Script):
                 noise_scale (float): Noise scale
                 psi (float): Rescaling factor
                 rescale (bool): Rescale the condition
+                noise_seed (int): Seed to generate noise from
                 """
                 y_mean, y_std = torch.mean(y), torch.std(y)
-                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * rng.randn_like(y)
+                rand_noise = rng.randn_local(noise_seed, y.shape)
+                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * rand_noise
                 if rescale:
                         y_scaled = (y - torch.mean(y)) / torch.std(y) * y_std + y_mean
                         if not torch.isnan(y_scaled).any():
@@ -133,24 +137,25 @@ class CADSExtensionScript(scripts.Script):
                                 logger.debug("Warning: NaN encountered in rescaling")
                 return y
 
-        def on_cfg_denoiser_callback(self, params: CFGDenoiserParams, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps):
+        def on_cfg_denoiser_callback(self, params: CFGDenoiserParams, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps,seed):
                 sampling_step = params.sampling_step
                 total_sampling_step = total_sampling_steps
                 text_cond = params.text_cond
                 text_uncond = params.text_uncond
+                noise_seed = self.get_noise_seed(seed, sampling_step)
 
                 t = 1.0 - max(min(sampling_step / total_sampling_step, 1.0), 0.0) # Algorithms assumes we start at 1.0 and go to 0.0
                 gamma = self.cads_linear_schedule(t, t1, t2)
                 # SD 1.5
                 if isinstance(text_cond, torch.Tensor) and isinstance(text_uncond, torch.Tensor):
-                        params.text_cond = self.add_noise(text_cond, gamma, noise_scale, mixing_factor, rescale)
-                        params.text_uncond = self.add_noise(text_uncond, gamma, noise_scale, mixing_factor, rescale)
+                        params.text_cond = self.add_noise(text_cond, gamma, noise_scale, mixing_factor, rescale, noise_seed)
+                        params.text_uncond = self.add_noise(text_uncond, gamma, noise_scale, mixing_factor, rescale, noise_seed)
                 # SDXL
                 elif isinstance(text_cond, Union[dict, OrderedDict]) and isinstance(text_uncond, Union[dict, OrderedDict]):
-                        params.text_cond['crossattn'] = self.add_noise(text_cond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
-                        params.text_uncond['crossattn'] = self.add_noise(text_uncond['crossattn'], gamma, noise_scale, mixing_factor, rescale)
-                        params.text_cond['vector'] = self.add_noise(text_cond['vector'], gamma, noise_scale, mixing_factor, rescale)
-                        params.text_uncond['vector'] = self.add_noise(text_uncond['vector'], gamma, noise_scale, mixing_factor, rescale)
+                        params.text_cond['crossattn'] = self.add_noise(text_cond['crossattn'], gamma, noise_scale, mixing_factor, rescale, noise_seed)
+                        params.text_uncond['crossattn'] = self.add_noise(text_uncond['crossattn'], gamma, noise_scale, mixing_factor, rescale, noise_seed)
+                        params.text_cond['vector'] = self.add_noise(text_cond['vector'], gamma, noise_scale, mixing_factor, rescale, noise_seed)
+                        params.text_uncond['vector'] = self.add_noise(text_uncond['vector'], gamma, noise_scale, mixing_factor, rescale, noise_seed)
                 else:
                         logger.error('Unknown text_cond type')
                         pass
@@ -192,3 +197,16 @@ class CADSExtensionScript(scripts.Script):
 
                 logger.debug("Enabled for hi-res fix with %i steps, re-hooking CADS", hr_pass_steps)
                 self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, hr_pass_steps)
+
+        def get_noise_seed(self, global_seed, step, factor=10000):
+                """ Get the noise seed for the current step
+
+                Args:
+                    global_seed (int): global seed from params
+                    step (int): the current sampling step
+                    factor (int): the factor to multiply the step by, can be changed for variations
+
+                Returns:
+                    int: the noise seed
+                """
+                return global_seed + step * factor
