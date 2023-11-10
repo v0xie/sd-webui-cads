@@ -11,9 +11,9 @@ CADS greatly increases diversity of generated images by adding scheduled noise t
 - [x] SD XL support  
 - [x] SD 1.5 support
 - [x] Hi-res fix support
+- [x] Support restoring parameter values from infotext (Send to Txt2Img, Send to Img2Img, etc.)
+- [x] Write infotext to image grids
 - [ ] ControlNet support
-- [ ] Support restoring parameter values from infotext (Send to Txt2Img, Send to Img2Img, etc.)
-- [ ] Write infotext to image grids
 
 ## Credits
 - The authors of the original paper for their method (https://arxiv.org/abs/2310.17347):
