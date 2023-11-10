@@ -60,6 +60,24 @@ class CADSExtensionScript(scripts.Script):
                 noise_scale.do_not_save_to_config = True
                 mixing_factor.do_not_save_to_config = True
                 apply_to_hr_pass.do_not_save_to_config = True
+                self.infotext_fields = [
+                        (active, 'CADS Active'),
+                        (rescale, 'CADS Rescale'),
+                        (t1, 'CADS Tau 1'),
+                        (t2, 'CADS Tau 2'),
+                        (noise_scale, 'CADS Noise Scale'),
+                        (mixing_factor, 'CADS Mixing Factor'),
+                        (apply_to_hr_pass, 'CADS Apply To Hires. Fix'),
+                ]
+                self.paste_field_names = [
+                        'cads_active',
+                        'cads_rescale',
+                        'cads_tau1',
+                        'cads_tau2',
+                        'cads_noise_scale',
+                        'cads_mixing_factor',
+                        'cads_hr_fix_active',
+                ]
                 return [active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass]
 
         def before_process_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
