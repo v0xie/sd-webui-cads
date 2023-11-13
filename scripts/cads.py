@@ -250,10 +250,3 @@ def callback_before_ui():
                 logger.exception("CADS: Error while making axis options")
 
 script_callbacks.on_before_ui(callback_before_ui)
-                        # (active, lambda d: gr.Checkbox.update(value='CADS Active' in d)),
-                        # (rescale, 'CADS Rescale'),
-                        # (t1, 'CADS Tau 1'),
-                        # (t2, 'CADS Tau 2'),
-                        # (noise_scale, 'CADS Noise Scale'),
-                        # (mixing_factor, 'CADS Mixing Factor'),
-                        # (apply_to_hr_pass, 'CADS Apply To Hires. Fix'),
