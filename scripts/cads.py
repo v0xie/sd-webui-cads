@@ -91,7 +91,7 @@ class CADSExtensionScript(scripts.Script):
                 mixing_factor = getattr(p, "cads_mixing_factor", mixing_factor)
                 rescale = getattr(p, "cads_rescale", rescale)
                 apply_to_hr_pass = getattr(p, "cads_hr_fix_active", apply_to_hr_pass)
-                theSeed = getattr(p, "seed", theSeed)
+                theSeed = getattr(p, "seed", 0)
 
                 first_pass_steps = getattr(p, "steps", -1)
                 if first_pass_steps <= 0:
