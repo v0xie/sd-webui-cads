@@ -32,8 +32,6 @@ GitHub URL: https://github.com/v0xie/sd-webui-cads
 
 """
 class CADSExtensionScript(scripts.Script):
-        def __init__(self):
-                self.seed = 0
         # Extension title in menu UI
         def title(self):
                 return "CADS"
@@ -92,7 +90,6 @@ class CADSExtensionScript(scripts.Script):
                 mixing_factor = getattr(p, "cads_mixing_factor", mixing_factor)
                 rescale = getattr(p, "cads_rescale", rescale)
                 apply_to_hr_pass = getattr(p, "cads_hr_fix_active", apply_to_hr_pass)
-                self.seed = getattr(p, "seed", 0)
 
                 first_pass_steps = getattr(p, "steps", -1)
                 if first_pass_steps <= 0:
@@ -160,7 +157,7 @@ class CADSExtensionScript(scripts.Script):
                 text_cond = params.text_cond
                 text_uncond = params.text_uncond
 
-                rng.manual_seed(self.seed)
+                rng.manual_seed(params.seed)
 
                 t = 1.0 - max(min(sampling_step / total_sampling_step, 1.0), 0.0) # Algorithms assumes we start at 1.0 and go to 0.0
                 gamma = self.cads_linear_schedule(t, t1, t2)
