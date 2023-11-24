@@ -61,7 +61,7 @@ class CADSExtensionScript(scripts.Script):
                 mixing_factor.do_not_save_to_config = True
                 apply_to_hr_pass.do_not_save_to_config = True
                 self.infotext_fields = [
-                        (active, 'CADS Active'),
+                        (active, lambda d: gr.Checkbox.update(value='CADS Active' in d)),
                         (rescale, 'CADS Rescale'),
                         (t1, 'CADS Tau 1'),
                         (t2, 'CADS Tau 2'),
@@ -210,3 +210,43 @@ class CADSExtensionScript(scripts.Script):
 
                 logger.debug("Enabled for hi-res fix with %i steps, re-hooking CADS", hr_pass_steps)
                 self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, hr_pass_steps)
+
+
+# XYZ Plot
+# Based on @mcmonkey4eva's XYZ Plot implementation here: https://github.com/mcmonkeyprojects/sd-dynamic-thresholding/blob/master/scripts/dynamic_thresholding.py
+def cads_apply_override(field, boolean: bool = False):
+    def fun(p, x, xs):
+        if boolean:
+            x = True if x.lower() == "true" else False
+        setattr(p, field, x)
+    return fun
+
+def cads_apply_field(field):
+    def fun(p, x, xs):
+        if not hasattr(p, "cads_active"):
+                setattr(p, "cads_active", True)
+        setattr(p, field, x)
+
+    return fun
+
+def make_axis_options():
+        xyz_grid = [x for x in scripts.scripts_data if x.script_class.__module__ == "xyz_grid.py"][0].module
+        extra_axis_options = {
+                xyz_grid.AxisOption("[CADS] Active", str, cads_apply_override('cads_active', boolean=True), choices=xyz_grid.boolean_choice(reverse=True)),
+                xyz_grid.AxisOption("[CADS] Rescale CFG", str, cads_apply_override('cads_rescale', boolean=True), choices=xyz_grid.boolean_choice(reverse=True)),
+                xyz_grid.AxisOption("[CADS] Tau 1", float, cads_apply_field("cads_tau1")),
+                xyz_grid.AxisOption("[CADS] Tau 2", float, cads_apply_field("cads_tau2")),
+                xyz_grid.AxisOption("[CADS] Noise Scale", float, cads_apply_field("cads_noise_scale")),
+                xyz_grid.AxisOption("[CADS] Mixing Factor", float, cads_apply_field("cads_mixing_factor")),
+                xyz_grid.AxisOption("[CADS] Apply to Hires. Fix", str, cads_apply_override('cads_hr_fix_active', boolean=True), choices=xyz_grid.boolean_choice(reverse=True)),
+        }
+        if not any("[CADS]" in x.label for x in xyz_grid.axis_options):
+                xyz_grid.axis_options.extend(extra_axis_options)
+
+def callback_before_ui():
+        try:
+                make_axis_options()
+        except:
+                logger.exception("CADS: Error while making axis options")
+
+script_callbacks.on_before_ui(callback_before_ui)
