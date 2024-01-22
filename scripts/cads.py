@@ -96,7 +96,7 @@ class CADSExtensionScript(scripts.Script):
                         logger.error("Steps not set, disabling CADS")
                         return
 
-                p.extra_generation_params = {
+                p.extra_generation_params.update({
                         "CADS Active": active,
                         "CADS Tau 1": t1,
                         "CADS Tau 2": t2,
@@ -104,7 +104,7 @@ class CADSExtensionScript(scripts.Script):
                         "CADS Mixing Factor": mixing_factor,
                         "CADS Rescale": rescale,
                         "CADS Apply To Hires. Fix": apply_to_hr_pass,
-                }
+                })
                 self.create_hook(p, active, t1, t2, noise_scale, mixing_factor, rescale, first_pass_steps)
         
         def create_hook(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, total_sampling_steps, *args, **kwargs):
