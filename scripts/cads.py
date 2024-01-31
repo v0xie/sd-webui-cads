@@ -6,8 +6,12 @@ import numpy as np
 from collections import OrderedDict
 from typing import Union
 
-from modules import script_callbacks, rng
+from modules import script_callbacks
 from modules.script_callbacks import CFGDenoiserParams
+try:
+        from modules.rng import randn_like
+except ImportError:
+        from torch import randn_like
 
 import torch
 
@@ -142,7 +146,7 @@ class CADSExtensionScript(scripts.Script):
                 rescale (bool): Rescale the condition
                 """
                 y_mean, y_std = torch.mean(y), torch.std(y)
-                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * rng.randn_like(y)
+                y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * randn_like(y)
                 if rescale:
                         y_scaled = (y - torch.mean(y)) / torch.std(y) * y_std + y_mean
                         if not torch.isnan(y_scaled).any():
@@ -231,6 +235,9 @@ def cads_apply_field(field):
 
 def make_axis_options():
         xyz_grid = [x for x in scripts.scripts_data if x.script_class.__module__ == "xyz_grid.py"][0].module
+        # Add the boolean choice function to SD.Next XYZ Grid script
+        if not hasattr(xyz_grid, "boolean_choice"):
+                xyz_grid.boolean_choice = lambda reverse=False: ["True", "False"] if not reverse else ["False", "True"]
         extra_axis_options = {
                 xyz_grid.AxisOption("[CADS] Active", str, cads_apply_override('cads_active', boolean=True), choices=xyz_grid.boolean_choice(reverse=True)),
                 xyz_grid.AxisOption("[CADS] Rescale CFG", str, cads_apply_override('cads_rescale', boolean=True), choices=xyz_grid.boolean_choice(reverse=True)),
