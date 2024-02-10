@@ -85,6 +85,7 @@ class CADSExtensionScript(scripts.Script):
                 return [active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass]
 
         def before_process_batch(self, p, active, t1, t2, noise_scale, mixing_factor, rescale, apply_to_hr_pass, *args, **kwargs):
+                self.unhook_callbacks()
                 active = getattr(p, "cads_active", active)
                 if active is False:
                         return
