@@ -22,13 +22,13 @@ logger.setLevel(environ.get("SD_WEBUI_LOG_LEVEL", logging.INFO))
 
 An implementation of CADS: Unleashing the Diversity of Diffusion Models through Condition-Annealed Sampling for Automatic1111 Webui
 
-@misc{sadat2023cads,
-      title={CADS: Unleashing the Diversity of Diffusion Models through Condition-Annealed Sampling},
-      author={Seyedmorteza Sadat and Jakob Buhmann and Derek Bradely and Otmar Hilliges and Romann M. Weber},
-      year={2023},
-      eprint={2310.17347},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+@inproceedings{
+    sadat2024cads,
+    title={{CADS}: Unleashing the Diversity of Diffusion Models through Condition-Annealed Sampling},
+    author={Seyedmorteza Sadat and Jakob Buhmann and Derek Bradley and Otmar Hilliges and Romann M. Weber},
+    booktitle={The Twelfth International Conference on Learning Representations},
+    year={2024},
+    url={https://openreview.net/forum?id=zMoNrajk2X}
 }
 
 Author: v0xie
