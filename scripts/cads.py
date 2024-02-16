@@ -162,6 +162,8 @@ class CADSExtensionScript(scripts.Script):
                 text_cond = params.text_cond
                 text_uncond = params.text_uncond
 
+                rng.manual_seed(params.seed)
+
                 t = 1.0 - max(min(sampling_step / total_sampling_step, 1.0), 0.0) # Algorithms assumes we start at 1.0 and go to 0.0
                 gamma = self.cads_linear_schedule(t, t1, t2)
                 # SD 1.5
