@@ -235,7 +235,7 @@ def cads_apply_field(field):
     return fun
 
 def make_axis_options():
-        xyz_grid = [x for x in scripts.scripts_data if x.script_class.__module__ == "xyz_grid.py"][0].module
+        xyz_grid = [x for x in scripts.scripts_data if x.script_class.__module__ in ("xyz_grid.py", "scripts.xyz_grid")][0].module
         # Add the boolean choice function to SD.Next XYZ Grid script
         if not hasattr(xyz_grid, "boolean_choice"):
                 xyz_grid.boolean_choice = lambda reverse=False: ["True", "False"] if not reverse else ["False", "True"]
